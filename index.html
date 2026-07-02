@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jeu de la Vie — J. H. Conway, 1970</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f2ecdd;
+    --paper-deep: #e9e1cd;
+    --ink: #1c1712;
+    --ink-soft: #4a4238;
+    --ink-faint: #857a68;
+    --vermillon: #c73b23;
+    --vermillon-deep: #9c2d1a;
+    --rule: #c9bfa8;
+    --grid-line: rgba(28, 23, 18, 0.07);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { background: var(--paper); }
+
+  body {
+    font-family: "Newsreader", Georgia, serif;
+    color: var(--ink);
+    background:
+      radial-gradient(ellipse 120% 80% at 50% -10%, rgba(255,255,255,0.55), transparent 60%),
+      var(--paper);
+    min-height: 100vh;
+    line-height: 1.55;
+  }
+
+  /* grain papier */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .page {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  /* ————— Masthead ————— */
+  header {
+    text-align: center;
+    border-bottom: 3px double var(--ink);
+    padding-bottom: 26px;
+    margin-bottom: 8px;
+    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .kicker {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .kicker::before, .kicker::after {
+    content: "";
+    height: 1px;
+    width: 72px;
+    background: var(--ink-faint);
+  }
+
+  h1 {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "SOFT" 40, "WONK" 1;
+    font-weight: 850;
+    font-size: clamp(52px, 9vw, 108px);
+    line-height: 0.95;
+    letter-spacing: -0.015em;
+    text-transform: uppercase;
+  }
+  h1 .accent { color: var(--vermillon); font-style: italic; font-weight: 600; }
+
+  .byline {
+    margin-top: 18px;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--ink-soft);
+  }
+  .byline strong { font-style: normal; font-weight: 600; color: var(--ink); }
+
+  .dateline {
+    display: flex;
+    justify-content: space-between;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--rule);
+    padding: 8px 2px 7px;
+    margin-bottom: 40px;
+    animation: rise 0.7s 0.08s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* ————— Intro deux colonnes ————— */
+  .intro {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 44px;
+    margin-bottom: 44px;
+    animation: rise 0.7s 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .lede {
+    font-size: 21px;
+    line-height: 1.5;
+  }
+  .lede::first-letter {
+    font-family: "Fraunces", serif;
+    font-weight: 800;
+    font-size: 74px;
+    float: left;
+    line-height: 0.78;
+    padding: 8px 10px 0 0;
+    color: var(--vermillon);
+  }
+
+  .rules h2 {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--vermillon-deep);
+    margin-bottom: 14px;
+  }
+  .rules ol {
+    list-style: none;
+    counter-reset: regle;
+  }
+  .rules li {
+    counter-increment: regle;
+    position: relative;
+    padding: 10px 0 10px 44px;
+    font-size: 16px;
+    border-top: 1px solid var(--rule);
+  }
+  .rules li:last-child { border-bottom: 1px solid var(--rule); }
+  .rules li::before {
+    content: counter(regle, upper-roman) ".";
+    position: absolute;
+    left: 0;
+    top: 10px;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 600;
+    color: var(--vermillon);
+  }
+  .rules li em { font-style: italic; }
+
+  /* ————— La figure (plateau) ————— */
+  .figure {
+    border: 1px solid var(--ink);
+    outline: 1px solid var(--ink);
+    outline-offset: 4px;
+    background: var(--paper-deep);
+    padding: 14px;
+    animation: rise 0.7s 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .figure-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 2px 4px 12px;
+  }
+  .figure-head .fig-label {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: 19px;
+  }
+  .figure-head .fig-label span { color: var(--vermillon); }
+
+  .readout {
+    display: flex;
+    gap: 26px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+  }
+  .readout .label {
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    color: var(--ink-faint);
+    margin-right: 8px;
+  }
+  .readout .value {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--vermillon-deep);
+  }
+
+  .canvas-frame {
+    position: relative;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    cursor: crosshair;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .hint {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 7px 16px;
+    pointer-events: none;
+    opacity: 0.92;
+    transition: opacity 0.5s;
+    white-space: nowrap;
+  }
+  .hint.hidden { opacity: 0; }
+
+  /* ————— Contrôles ————— */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 4px 2px;
+  }
+
+  button, select {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    border-radius: 0;
+  }
+  button:hover, select:hover { background: var(--ink); color: var(--paper); }
+  button:active { transform: translateY(1px); }
+
+  button.primary {
+    background: var(--vermillon);
+    border-color: var(--vermillon-deep);
+    color: #fdf8ec;
+    min-width: 118px;
+  }
+  button.primary:hover { background: var(--vermillon-deep); }
+
+  select {
+    appearance: none;
+    padding-right: 34px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%231c1712'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+  select:hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23f2ecdd'/%3E%3C/svg%3E");
+  }
+
+  .speed {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 130px;
+    height: 1px;
+    background: var(--ink);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    background: var(--vermillon);
+    border: 1px solid var(--ink);
+    border-radius: 50%;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 13px;
+    height: 13px;
+    background: var(--vermillon);
+    border: 1px solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .fig-caption {
+    padding: 12px 4px 0;
+    font-size: 14.5px;
+    font-style: italic;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+
+  /* ————— Pied de page ————— */
+  footer {
+    margin-top: 48px;
+    border-top: 3px double var(--ink);
+    padding-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  footer .glider { color: var(--vermillon); letter-spacing: 0.05em; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 780px) {
+    .page { padding: 28px 16px 56px; }
+    .intro { grid-template-columns: 1fr; gap: 28px; }
+    .readout { gap: 16px; flex-wrap: wrap; }
+    .speed { margin-left: 0; width: 100%; }
+    footer { flex-direction: column; gap: 6px; text-align: center; }
+    .dateline { flex-direction: column; gap: 2px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <p class="kicker">Récréations mathématiques · N° 223</p>
+    <h1>Jeu <span class="accent">de la</span> Vie</h1>
+    <p class="byline">L'automate cellulaire de <strong>John Horton Conway</strong> — où des règles simples engendrent une complexité infinie</p>
+  </header>
+
+  <div class="dateline">
+    <span>Vol. IV — Automates cellulaires</span>
+    <span>Octobre 1970</span>
+    <span>Cambridge, Angleterre</span>
+  </div>
+
+  <section class="intro">
+    <p class="lede">
+      Sur une grille infinie, chaque cellule est vivante ou morte. À chaque génération,
+      son destin ne dépend que de ses huit voisines — rien de plus. De cette arithmétique
+      élémentaire naissent des planeurs qui voyagent, des canons qui tirent, des structures
+      qui oscillent à jamais. Aucun joueur ne joue : posez quelques cellules, et observez
+      l'univers se dérouler de lui-même.
+    </p>
+    <div class="rules">
+      <h2>Les trois lois</h2>
+      <ol>
+        <li>Une cellule vivante entourée de <em>deux ou trois</em> voisines vivantes survit.</li>
+        <li>Une cellule morte entourée d'<em>exactement trois</em> voisines vivantes naît.</li>
+        <li>Toute autre cellule meurt — de solitude, ou d'étouffement.</li>
+      </ol>
+    </div>
+  </section>
+
+  <figure class="figure">
+    <div class="figure-head">
+      <span class="fig-label"><span>Fig. 1</span> — L'univers, 112 × 64 cellules (tore)</span>
+      <div class="readout">
+        <span><span class="label">Génération</span><span class="value" id="gen">0</span></span>
+        <span><span class="label">Population</span><span class="value" id="pop">0</span></span>
+      </div>
+    </div>
+
+    <div class="canvas-frame" id="frame">
+      <canvas id="board"></canvas>
+      <div class="hint" id="hint">Dessinez à la souris — Espace : lecture / pause</div>
+    </div>
+
+    <div class="controls">
+      <button class="primary" id="playBtn">&#9654;&#xFE0E; Lancer</button>
+      <button id="stepBtn">Pas à pas</button>
+      <button id="randomBtn">Hasard</button>
+      <button id="clearBtn">Effacer</button>
+      <select id="patternSelect" aria-label="Motifs classiques">
+        <option value="" selected disabled>Motifs classiques…</option>
+        <option value="glider">Planeur</option>
+        <option value="lwss">Vaisseau léger</option>
+        <option value="pulsar">Pulsar</option>
+        <option value="rpentomino">R-pentomino</option>
+        <option value="gun">Canon à planeurs</option>
+      </select>
+      <div class="speed">
+        <span>Tempo</span>
+        <input type="range" id="speed" min="2" max="30" value="12" aria-label="Vitesse">
+        <span id="speedVal">12 gén./s</span>
+      </div>
+    </div>
+
+    <figcaption class="fig-caption">
+      Les cellules naissantes apparaissent en vermillon, puis s'assombrissent avec l'âge.
+      Les bords se rejoignent : l'univers est un tore.
+    </figcaption>
+  </figure>
+
+  <footer>
+    <span>Conway, J. H. — « Life », 1970</span>
+    <span class="glider">·¹¹ / ¹·¹ / ·¹· — le planeur</span>
+    <span>Toute ressemblance avec la vie réelle est fortuite</span>
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const COLS = 112, ROWS = 64, CELL = 10;
+  const canvas = document.getElementById("board");
+  const ctx = canvas.getContext("2d");
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = COLS * CELL * dpr;
+  canvas.height = ROWS * CELL * dpr;
+  ctx.scale(dpr, dpr);
+
+  // grid[i] = 0 si morte, sinon âge de la cellule (1 = vient de naître)
+  let grid = new Uint16Array(COLS * ROWS);
+  let next = new Uint16Array(COLS * ROWS);
+  let generation = 0;
+  let running = false;
+  let genPerSec = 12;
+
+  const styles = getComputedStyle(document.documentElement);
+  const PAPER = styles.getPropertyValue("--paper").trim();
+  const GRID_LINE = styles.getPropertyValue("--grid-line").trim();
+  // du vermillon (naissance) vers l'encre (vieillesse)
+  const AGE_COLORS = ["#c73b23", "#a93520", "#83301f", "#5e2a1d", "#3a221a", "#1c1712"];
+
+  const genEl = document.getElementById("gen");
+  const popEl = document.getElementById("pop");
+
+  function drawGridLines() {
+    ctx.strokeStyle = GRID_LINE;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 1; x < COLS; x++) {
+      ctx.moveTo(x * CELL + 0.5, 0);
+      ctx.lineTo(x * CELL + 0.5, ROWS * CELL);
+    }
+    for (let y = 1; y < ROWS; y++) {
+      ctx.moveTo(0, y * CELL + 0.5);
+      ctx.lineTo(COLS * CELL, y * CELL + 0.5);
+    }
+    ctx.stroke();
+  }
+
+  function render() {
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(0, 0, COLS * CELL, ROWS * CELL);
+    drawGridLines();
+    let population = 0;
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const age = grid[y * COLS + x];
+        if (age === 0) continue;
+        population++;
+        ctx.fillStyle = AGE_COLORS[Math.min(age, AGE_COLORS.length) - 1];
+        ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+      }
+    }
+    genEl.textContent = generation;
+    popEl.textContent = population;
+  }
+
+  function step() {
+    for (let y = 0; y < ROWS; y++) {
+      const yUp = ((y - 1 + ROWS) % ROWS) * COLS;
+      const yMid = y * COLS;
+      const yDown = ((y + 1) % ROWS) * COLS;
+      for (let x = 0; x < COLS; x++) {
+        const xL = (x - 1 + COLS) % COLS;
+        const xR = (x + 1) % COLS;
+        const n =
+          (grid[yUp + xL] ? 1 : 0) + (grid[yUp + x] ? 1 : 0) + (grid[yUp + xR] ? 1 : 0) +
+          (grid[yMid + xL] ? 1 : 0) + (grid[yMid + xR] ? 1 : 0) +
+          (grid[yDown + xL] ? 1 : 0) + (grid[yDown + x] ? 1 : 0) + (grid[yDown + xR] ? 1 : 0);
+        const alive = grid[yMid + x];
+        if (alive) {
+          next[yMid + x] = (n === 2 || n === 3) ? Math.min(alive + 1, 999) : 0;
+        } else {
+          next[yMid + x] = (n === 3) ? 1 : 0;
+        }
+      }
+    }
+    [grid, next] = [next, grid];
+    generation++;
+  }
+
+  // ————— Boucle d'animation —————
+  let lastTime = 0, accumulator = 0;
+  function loop(time) {
+    requestAnimationFrame(loop);
+    if (!running) { lastTime = time; return; }
+    accumulator += (time - lastTime) / 1000;
+    lastTime = time;
+    const interval = 1 / genPerSec;
+    let steps = 0;
+    while (accumulator >= interval && steps < 8) {
+      step();
+      accumulator -= interval;
+      steps++;
+    }
+    if (steps > 0) render();
+  }
+  requestAnimationFrame(loop);
+
+  // ————— Contrôles —————
+  const playBtn = document.getElementById("playBtn");
+  const hint = document.getElementById("hint");
+
+  function setRunning(value) {
+    running = value;
+    playBtn.innerHTML = running ? "&#10073;&#10073;&#xFE0E; Pause" : "&#9654;&#xFE0E; Lancer";
+    if (running) hint.classList.add("hidden");
+  }
+
+  playBtn.addEventListener("click", () => setRunning(!running));
+
+  document.getElementById("stepBtn").addEventListener("click", () => {
+    setRunning(false);
+    step();
+    render();
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    setRunning(false);
+    grid.fill(0);
+    generation = 0;
+    render();
+  });
+
+  document.getElementById("randomBtn").addEventListener("click", () => {
+    setRunning(false);
+    for (let i = 0; i < grid.length; i++) grid[i] = Math.random() < 0.22 ? 1 : 0;
+    generation = 0;
+    render();
+    hint.classList.add("hidden");
+  });
+
+  const speedInput = document.getElementById("speed");
+  const speedVal = document.getElementById("speedVal");
+  speedInput.addEventListener("input", () => {
+    genPerSec = Number(speedInput.value);
+    speedVal.textContent = genPerSec + " gén./s";
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && e.target.tagName !== "BUTTON" && e.target.tagName !== "SELECT") {
+      e.preventDefault();
+      setRunning(!running);
+    }
+  });
+
+  // ————— Motifs classiques —————
+  function pulsarCells() {
+    const cells = [];
+    const bands = [2, 3, 4, 8, 9, 10];
+    const lines = [0, 5, 7, 12];
+    for (const l of lines) for (const b of bands) {
+      cells.push([l, b], [b, l]);
+    }
+    return cells;
+  }
+
+  const PATTERNS = {
+    glider: [[0,1],[1,2],[2,0],[2,1],[2,2]],
+    lwss: [[0,1],[0,4],[1,0],[2,0],[2,4],[3,0],[3,1],[3,2],[3,3]],
+    rpentomino: [[0,1],[0,2],[1,0],[1,1],[2,1]],
+    pulsar: pulsarCells(),
+    gun: [
+      [5,1],[5,2],[6,1],[6,2],
+      [3,13],[3,14],[4,12],[4,16],[5,11],[5,17],[6,11],[6,15],[6,17],[6,18],
+      [7,11],[7,17],[8,12],[8,16],[9,13],[9,14],
+      [1,25],[2,23],[2,25],[3,21],[3,22],[4,21],[4,22],[5,21],[5,22],
+      [6,23],[6,25],[7,25],
+      [3,35],[3,36],[4,35],[4,36]
+    ]
+  };
+
+  document.getElementById("patternSelect").addEventListener("change", (e) => {
+    const cells = PATTERNS[e.target.value];
+    if (!cells) return;
+    setRunning(false);
+    grid.fill(0);
+    generation = 0;
+    const maxR = Math.max(...cells.map(c => c[0]));
+    const maxC = Math.max(...cells.map(c => c[1]));
+    const offR = Math.floor((ROWS - maxR) / 2);
+    const offC = Math.floor((COLS - maxC) / 2);
+    for (const [r, c] of cells) grid[(r + offR) * COLS + (c + offC)] = 1;
+    render();
+    hint.classList.add("hidden");
+    e.target.selectedIndex = 0;
+  });
+
+  // ————— Dessin à la souris / au doigt —————
+  let drawing = false, drawValue = 1, lastCell = -1;
+
+  function cellFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const x = Math.floor((clientX - rect.left) / rect.width * COLS);
+    const y = Math.floor((clientY - rect.top) / rect.height * ROWS);
+    if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return -1;
+    return y * COLS + x;
+  }
+
+  function startDraw(e) {
+    const i = cellFromEvent(e);
+    if (i < 0) return;
+    drawing = true;
+    drawValue = grid[i] ? 0 : 1;
+    grid[i] = drawValue;
+    lastCell = i;
+    render();
+    hint.classList.add("hidden");
+    e.preventDefault();
+  }
+
+  function moveDraw(e) {
+    if (!drawing) return;
+    const i = cellFromEvent(e);
+    if (i < 0 || i === lastCell) return;
+    grid[i] = drawValue;
+    lastCell = i;
+    render();
+    e.preventDefault();
+  }
+
+  function endDraw() { drawing = false; lastCell = -1; }
+
+  canvas.addEventListener("mousedown", startDraw);
+  canvas.addEventListener("mousemove", moveDraw);
+  window.addEventListener("mouseup", endDraw);
+  canvas.addEventListener("touchstart", startDraw, { passive: false });
+  canvas.addEventListener("touchmove", moveDraw, { passive: false });
+  window.addEventListener("touchend", endDraw);
+
+  // ————— État initial : un planeur et un pulsar posés sur la grille —————
+  (function seed() {
+    const put = (cells, offR, offC) => {
+      for (const [r, c] of cells) grid[(r + offR) * COLS + (c + offC)] = 1;
+    };
+    put(PATTERNS.glider, 6, 8);
+    put(PATTERNS.pulsar, Math.floor(ROWS / 2) - 6, Math.floor(COLS / 2) - 6);
+    put(PATTERNS.lwss, ROWS - 14, COLS - 24);
+    render();
+  })();
+})();
+</script>
+</body>
+</html>
