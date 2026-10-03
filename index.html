@@ -358,6 +358,8 @@
     .dateline { flex-direction: column; gap: 2px; text-align: center; }
   }
 </style>
+<!-- Pont avec la salle de jeux (dchirez.fr/games/) : facultatif, le jeu tourne sans. -->
+<script src="/games/pont-hub.js"></script>
 </head>
 <body>
 <div class="page">
@@ -524,6 +526,8 @@
     }
     [grid, next] = [next, grid];
     generation++;
+    // Record de longévité tenu par la salle de jeux (une écriture toutes les 100 générations)
+    if (window.HubJeux && generation % 100 === 0) HubJeux.fait("jeu-de-la-vie", null, ["generations", generation]);
   }
 
   // ————— Boucle d'animation —————
